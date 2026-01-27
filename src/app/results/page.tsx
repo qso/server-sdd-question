@@ -13,7 +13,9 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import ReactECharts from 'echarts-for-react';
 
 interface SurveyResponse {
   id: number;
@@ -30,12 +32,11 @@ interface ProcessedResponse extends SurveyResponse {
   dailySum: number;
 }
 
-const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
 export default function ResultsPage() {
   const [responses, setResponses] = useState<ProcessedResponse[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     async function fetchResponses() {
@@ -72,6 +73,19 @@ export default function ResultsPage() {
 
     fetchResponses();
   }, []);
+
+  // 切换行展开状态
+  const toggleRow = (id: number) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
 
   // 本地搜索
   const filteredResponses = useMemo(() => {
@@ -111,34 +125,130 @@ export default function ResultsPage() {
     };
   }, [responses]);
 
-  // 准备图表数据 - 研发流程平均分布
-  const devProcessChartData = useMemo(() => {
-    if (!stats) return [];
+  // ECharts 配置 - 饼图
+  const pieOption = useMemo(() => {
+    if (!stats) return {};
 
-    return SURVEY_CATEGORIES.developmentProcess.fields.map(field => ({
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c}%'
+      },
+      legend: {
+        orient: 'vertical',
+        left: 'left'
+      },
+      series: [
+        {
+          type: 'pie',
+          radius: '60%',
+          data: [
+            { value: Number(stats.avgDevProcess.toFixed(2)), name: '研发流程' },
+            { value: Number(stats.avgDailyTasks.toFixed(2)), name: '日常事项' }
+          ],
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.5)'
+            }
+          },
+          label: {
+            formatter: '{b}: {c}%'
+          }
+        }
+      ]
+    };
+  }, [stats]);
+
+  // ECharts 配置 - 研发流程柱状图
+  const devProcessBarOption = useMemo(() => {
+    if (!stats) return {};
+
+    const data = SURVEY_CATEGORIES.developmentProcess.fields.map(field => ({
       name: field.label,
       value: Number(stats.fieldAverages[field.key].toFixed(2))
     }));
+
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: '{b}: {c}%'
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: data.map(d => d.name),
+        axisLabel: {
+          rotate: 45,
+          interval: 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: '时间占比 (%)'
+      },
+      series: [
+        {
+          type: 'bar',
+          data: data.map(d => d.value),
+          itemStyle: {
+            color: '#4f46e5'
+          }
+        }
+      ]
+    };
   }, [stats]);
 
-  // 准备图表数据 - 日常事项平均分布
-  const dailyTasksChartData = useMemo(() => {
-    if (!stats) return [];
+  // ECharts 配置 - 日常事项柱状图
+  const dailyTasksBarOption = useMemo(() => {
+    if (!stats) return {};
 
-    return SURVEY_CATEGORIES.dailyTasks.fields.map(field => ({
+    const data = SURVEY_CATEGORIES.dailyTasks.fields.map(field => ({
       name: field.label,
       value: Number(stats.fieldAverages[field.key].toFixed(2))
     }));
-  }, [stats]);
 
-  // 准备饼图数据 - 研发流程 vs 日常事项
-  const pieChartData = useMemo(() => {
-    if (!stats) return [];
-
-    return [
-      { name: '研发流程', value: Number(stats.avgDevProcess.toFixed(2)) },
-      { name: '日常事项', value: Number(stats.avgDailyTasks.toFixed(2)) }
-    ];
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: '{b}: {c}%'
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '10%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: data.map(d => d.name)
+      },
+      yAxis: {
+        type: 'value',
+        name: '时间占比 (%)'
+      },
+      series: [
+        {
+          type: 'bar',
+          data: data.map(d => d.value),
+          itemStyle: {
+            color: '#06b6d4'
+          }
+        }
+      ]
+    };
   }, [stats]);
 
   // 按小组统计
@@ -227,25 +337,7 @@ export default function ResultsPage() {
             <CardTitle>时间分配总览</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={pieChartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}%`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {pieChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${value}%`} />
-              </PieChart>
-            </ResponsiveContainer>
+            <ReactECharts option={pieOption} style={{ height: '400px' }} />
           </CardContent>
         </Card>
       )}
@@ -257,15 +349,7 @@ export default function ResultsPage() {
             <CardTitle>研发流程各环节平均时间分配</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={devProcessChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                <YAxis label={{ value: '时间占比 (%)', angle: -90, position: 'insideLeft' }} />
-                <Tooltip formatter={(value) => `${value}%`} />
-                <Bar dataKey="value" fill="#4f46e5" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={devProcessBarOption} style={{ height: '400px' }} />
           </CardContent>
         </Card>
       )}
@@ -277,15 +361,7 @@ export default function ResultsPage() {
             <CardTitle>日常事项各环节平均时间分配</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dailyTasksChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis label={{ value: '时间占比 (%)', angle: -90, position: 'insideLeft' }} />
-                <Tooltip formatter={(value) => `${value}%`} />
-                <Bar dataKey="value" fill="#06b6d4" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={dailyTasksBarOption} style={{ height: '300px' }} />
           </CardContent>
         </Card>
       )}
@@ -323,7 +399,7 @@ export default function ResultsPage() {
         </Card>
       )}
 
-      {/* 搜索框 */}
+      {/* 搜索框和问卷明细列表 */}
       <Card>
         <CardHeader>
           <CardTitle>问卷明细列表</CardTitle>
@@ -352,6 +428,7 @@ export default function ResultsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead>姓名</TableHead>
                     <TableHead>小组</TableHead>
                     <TableHead>研发流程</TableHead>
@@ -361,17 +438,69 @@ export default function ResultsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredResponses.map((response) => (
-                    <TableRow key={response.id}>
-                      <TableCell className="font-medium">{response.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{response.team}</Badge>
-                      </TableCell>
-                      <TableCell>{response.devSum.toFixed(1)}%</TableCell>
-                      <TableCell>{response.dailySum.toFixed(1)}%</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(response.updated_at).toLocaleString('zh-CN')}
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow key={response.id} className="cursor-pointer hover:bg-gray-50">
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRow(response.id)}
+                          >
+                            {expandedRows.has(response.id) ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell className="font-medium">{response.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{response.team}</Badge>
+                        </TableCell>
+                        <TableCell>{response.devSum.toFixed(1)}%</TableCell>
+                        <TableCell>{response.dailySum.toFixed(1)}%</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(response.updated_at).toLocaleString('zh-CN')}
+                        </TableCell>
+                      </TableRow>
+                      {expandedRows.has(response.id) && (
+                        <TableRow key={`${response.id}-detail`}>
+                          <TableCell colSpan={6} className="bg-gray-50">
+                            <div className="p-4 space-y-4">
+                              {/* 研发流程详情 */}
+                              <div>
+                                <h4 className="font-semibold mb-2">研发流程全过程</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                  {SURVEY_CATEGORIES.developmentProcess.fields.map(field => (
+                                    <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
+                                      <span className="text-sm text-gray-700">{field.label}</span>
+                                      <span className="text-sm font-semibold text-indigo-600">
+                                        {(response.timeAllocation[field.key] || 0).toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 日常事项详情 */}
+                              <div>
+                                <h4 className="font-semibold mb-2">日常事项</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                  {SURVEY_CATEGORIES.dailyTasks.fields.map(field => (
+                                    <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
+                                      <span className="text-sm text-gray-700">{field.label}</span>
+                                      <span className="text-sm font-semibold text-cyan-600">
+                                        {(response.timeAllocation[field.key] || 0).toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   ))}
                 </TableBody>
               </Table>
