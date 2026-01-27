@@ -1,143 +1,131 @@
 # 服务端开发 AI 研发提效问卷
 
-一个用于收集服务端开发同学日常工作时间分配数据的问卷系统。
+一个用于收集服务端开发人员时间分配数据的问卷系统，帮助评估 AI 工具在研发流程中的提效潜力。
 
-## 功能特性
+## ✨ 功能特性
 
-- ✨ **交互式滑块**: 调整一个滑块时,其他滑块自动按比例缩放,保持总和为 100%
-- ⌨️ **直接输入**: 每个滑块右侧的百分比支持直接输入,失去焦点后自动调整其他滑块
-- 📊 **分组展示**: 研发流程全过程(15项)和日常事项(7项)分两个区域展示
-- ✅ **实时验证**: 实时显示当前百分比总和,必须为 100% 才能提交
-- 🔄 **同名覆盖**: 相同姓名的提交会覆盖之前的数据
-- 📱 **响应式设计**: 支持手机、平板、桌面端访问
-- 📈 **管理后台**: 查看所有提交数据和统计信息
+- 📝 **交互式问卷**：使用滑块和输入框分配时间比例
+- 🔄 **智能平衡**：拖动一个滑块时，其他滑块自动按比例调整
+- ✅ **实时验证**：确保总和为 100% 才能提交
+- 📊 **数据后台**：查看所有提交记录和统计数据
+- 🔒 **去重逻辑**：同名提交自动覆盖之前的数据
+- 📱 **响应式设计**：支持手机、平板、桌面端访问
 
-## 技术栈
+## 🚀 快速开始
 
-- **框架**: Next.js 15 (App Router) + TypeScript
-- **数据库**: Vercel Postgres
+### 本地开发
+
+```bash
+# 克隆项目
+git clone https://github.com/qso/server-sdd-question.git
+cd server-sdd-question
+
+# 安装依赖
+npm install
+
+# 从 Vercel 拉取环境变量（需要先登录）
+vercel login
+vercel link
+vercel env pull .env.local
+
+# 检查数据库表结构
+npm run check-schema
+
+# 启动开发服务器
+npm run dev
+```
+
+访问 http://localhost:3000 查看问卷。
+访问 http://localhost:3000/admin 查看管理后台。
+
+## 📋 问卷内容
+
+### 基本信息
+- 姓名（必填，唯一标识）
+- 小组（下拉选择，10个预设选项）
+
+### 时间分配（总和必须 100%）
+
+**研发流程全过程**（13个环节）：
+需求评审、拆单排期、技术方案产出、技术方案评审、测试用例产出、测试用例评审、代码开发、功能联调、冒烟测试、功能测试、Bugfix、代码Review、功能上线
+
+**日常事项**（6个环节）：
+告警治理、异常日志、日常答疑、舆情排查、开会、线上问题应急
+
+## 🛠️ 技术栈
+
+- **框架**: Next.js 15 (App Router)
+- **语言**: TypeScript
+- **数据库**: Neon Serverless Postgres
 - **UI**: Tailwind CSS + shadcn/ui
 - **验证**: Zod
 - **部署**: Vercel
 
-## 快速开始
+## 🗄️ 数据库架构
 
-### 1. 安装依赖
+简化的 JSON 存储架构：
 
-\`\`\`bash
-npm install
-\`\`\`
+```sql
+CREATE TABLE survey_responses (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  team VARCHAR(255) NOT NULL,
+  time_allocation TEXT NOT NULL,  -- JSON 格式存储所有时间分配
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
-### 2. 配置环境变量
+CREATE INDEX idx_survey_responses_name ON survey_responses(name);
+CREATE INDEX idx_survey_responses_team ON survey_responses(team);
+```
 
-复制 `.env.example` 为 `.env.local` 并配置 Vercel Postgres 连接字符串:
+**架构优势**：
+- ✅ 灵活的 JSON 存储，易于扩展
+- ✅ 添加新字段无需修改数据库表结构
+- ✅ 前端验证 100% 总和，服务端验证数据格式
+- ✅ 通过 `name` 字段实现去重
 
-\`\`\`bash
-cp .env.example .env.local
-\`\`\`
+## 📁 项目结构
 
-编辑 `.env.local` 填入实际的数据库连接信息:
-
-\`\`\`env
-POSTGRES_URL="postgresql://..."
-POSTGRES_PRISMA_URL="postgresql://..."
-POSTGRES_URL_NON_POOLING="postgresql://..."
-\`\`\`
-
-### 3. 初始化数据库
-
-运行数据库初始化脚本创建表结构:
-
-\`\`\`bash
-npm run setup-db
-\`\`\`
-
-### 4. 启动开发服务器
-
-\`\`\`bash
-npm run dev
-\`\`\`
-
-访问 [http://localhost:3000](http://localhost:3000) 查看问卷页面。
-
-访问 [http://localhost:3000/admin](http://localhost:3000/admin) 查看管理后台。
-
-## 部署到 Vercel
-
-### 方式一: 通过 Vercel CLI
-
-1. 安装 Vercel CLI:
-   \`\`\`bash
-   npm install -g vercel
-   \`\`\`
-
-2. 登录并部署:
-   \`\`\`bash
-   vercel
-   \`\`\`
-
-### 方式二: 通过 Vercel Dashboard
-
-1. 访问 [vercel.com](https://vercel.com)
-2. 导入 Git 仓库
-3. 添加 Vercel Postgres 数据库
-4. 部署项目
-
-### 3. 配置 Vercel Postgres
-
-1. 在 Vercel Dashboard 中,进入项目设置
-2. 点击 **Storage** → **Create Database** → **Postgres**
-3. 创建数据库后,环境变量会自动配置
-4. 在本地拉取环境变量:
-   \`\`\`bash
-   vercel env pull
-   \`\`\`
-
-5. 运行数据库初始化:
-   \`\`\`bash
-   npm run setup-db
-   \`\`\`
-
-## 项目结构
-
-\`\`\`
+```
 server-sdd-question/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx              # 根布局
-│   │   ├── page.tsx                # 问卷表单页面
-│   │   ├── admin/page.tsx          # 管理后台页面
-│   │   └── globals.css             # 全局样式
+│   │   ├── page.tsx              # 问卷主页
+│   │   ├── admin/page.tsx        # 数据后台
+│   │   └── layout.tsx
 │   ├── components/
-│   │   ├── ui/                     # shadcn/ui 组件
-│   │   └── survey/                 # 问卷组件
-│   │       ├── SurveyForm.tsx      # 主表单容器
-│   │       ├── SliderGroup.tsx     # 分组滑块
-│   │       ├── TimeSlider.tsx      # 单个滑块
-│   │       └── ValidationDisplay.tsx # 验证显示
+│   │   ├── ui/                   # shadcn/ui 组件
+│   │   └── survey/
+│   │       ├── SurveyForm.tsx    # 主表单
+│   │       ├── SliderGroup.tsx   # 滑块组
+│   │       ├── TimeSlider.tsx    # 单个滑块（支持直接输入）
+│   │       └── ValidationDisplay.tsx
 │   └── lib/
-│       ├── constants.ts            # 问卷分类定义
-│       ├── validations.ts          # Zod 验证规则
-│       ├── db.ts                   # 数据库查询
-│       ├── actions.ts              # Server Actions
-│       └── utils.ts                # 工具函数
+│       ├── constants.ts          # 问卷字段定义
+│       ├── validations.ts        # Zod 验证
+│       ├── db.ts                 # 数据库操作
+│       └── actions.ts            # Server Actions
 ├── scripts/
-│   └── setup-db.ts                 # 数据库初始化脚本
-└── package.json
-\`\`\`
+│   ├── setup-db.ts               # 数据库初始化
+│   ├── check-schema.ts           # 检查表结构
+│   └── migrate-to-json-schema.ts # 架构迁移
+└── .env.local                    # 环境变量（本地）
+```
 
-## 核心功能说明
+## 💡 核心功能说明
 
 ### 比例缩放算法
 
-当用户调整某个滑块时,其他滑块会按当前比例自动缩放,确保总和始终为 100%:
+当用户调整某个滑块时，其他滑块会按当前比例自动缩放，确保总和始终为 100%：
 
-\`\`\`typescript
+```typescript
 const handleSliderChange = (key: string, newValue: number) => {
   const otherKeys = Object.keys(values).filter(k => k !== key);
   const otherSum = otherKeys.reduce((sum, k) => sum + values[k], 0);
   const remaining = 100 - newValue;
 
+  // 按比例缩放其他滑块
   const scaleFactor = remaining / otherSum;
   const newValues = { [key]: newValue };
   otherKeys.forEach(k => {
@@ -145,79 +133,71 @@ const handleSliderChange = (key: string, newValue: number) => {
   });
   setValues(newValues);
 };
-\`\`\`
+```
 
 ### 同名覆盖
 
-数据库使用 `ON CONFLICT (name) DO UPDATE` 语法实现同名覆盖:
+数据库使用 `ON CONFLICT (name) DO UPDATE` 语法实现同名覆盖：
 
-\`\`\`sql
-INSERT INTO survey_responses (...)
-VALUES (...)
+```sql
+INSERT INTO survey_responses (name, team, time_allocation)
+VALUES ($1, $2, $3)
 ON CONFLICT (name) DO UPDATE SET
   team = EXCLUDED.team,
-  ...
-\`\`\`
+  time_allocation = EXCLUDED.time_allocation,
+  updated_at = CURRENT_TIMESTAMP
+```
 
-### 数据验证
+## 🔧 开发命令
 
-- 客户端: React state 实时验证总和是否为 100%
-- 服务端: Zod schema 验证 + 数据库 CHECK 约束双重保障
+```bash
+# 开发
+npm run dev          # 启动开发服务器
+npm run build        # 构建生产版本
+npm start            # 启动生产服务器
 
-## API 端点
+# 数据库
+npm run setup-db     # 初始化数据库表
+npm run check-schema # 检查数据库架构
 
-### Server Actions
+# 代码质量
+npm run lint         # ESLint 检查
+```
 
-- `submitSurvey(formData)`: 提交问卷数据
+## 🤔 常见问题
 
-### 数据库查询
+### Q: 如何添加新的时间分配字段？
 
-- `createSurveyResponse(data)`: 创建/更新问卷记录
-- `getAllSurveyResponses()`: 获取所有问卷记录
-- `getSurveyStats()`: 获取统计数据
+编辑 `src/lib/constants.ts`：
 
-## 常见问题
+```typescript
+{ key: 'new_field', label: '新字段名称' }
+```
 
-### Q: 如何修改问卷选项?
+推送代码即可，**无需修改数据库**！
 
-编辑 `src/lib/constants.ts` 文件,在 `SURVEY_CATEGORIES` 中添加或修改选项。
+### Q: 如何修改小组选项？
 
-注意:修改后需要同步更新:
-1. `src/lib/validations.ts` 的 Zod schema
-2. `src/lib/db.ts` 的数据库查询
-3. `scripts/setup-db.ts` 的表结构
-4. `src/app/admin/page.tsx` 的数据计算
+编辑 `src/lib/constants.ts` 中的 `TEAM_OPTIONS` 数组。
 
-### Q: 如何备份数据?
+### Q: 本地如何连接数据库？
 
-在 Vercel Dashboard 的 Postgres 面板中可以导出数据,或使用 SQL 查询:
+```bash
+vercel env pull .env.local  # 从 Vercel 拉取环境变量
+npm run check-schema        # 检查数据库连接
+```
 
-\`\`\`sql
-SELECT * FROM survey_responses;
-\`\`\`
+## 📚 文档
 
-### Q: 本地开发时如何连接数据库?
+详细文档请查看 [DEPLOYMENT.md](DEPLOYMENT.md)
 
-可以使用本地 PostgreSQL,或连接 Vercel Postgres:
+## 🔗 相关链接
 
-\`\`\`bash
-vercel env pull .env.local
-\`\`\`
+- **GitHub**: https://github.com/qso/server-sdd-question
+- **Vercel Dashboard**: https://vercel.com/qsos-projects/server-sdd-question
 
-## 开发命令
+---
 
-\`\`\`bash
-npm run dev        # 启动开发服务器
-npm run build      # 构建生产版本
-npm run start      # 启动生产服务器
-npm run lint       # 运行 ESLint
-npm run setup-db   # 初始化数据库
-\`\`\`
-
-## License
-
-MIT
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request!
+**最后更新**: 2026-01-27
+**当前架构**: JSON 存储（简化架构）
+**数据库**: Neon Serverless Postgres
