@@ -14,8 +14,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Info } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface SurveyResponse {
   id: number;
@@ -37,6 +43,7 @@ export default function ResultsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchResponses() {
@@ -275,6 +282,31 @@ export default function ResultsPage() {
     return result.sort((a, b) => b.count - a.count);
   }, [responses]);
 
+  // 获取小组的详细时间分布
+  const getTeamDetailData = (teamName: string) => {
+    const teamResponses = responses.filter(r => r.team === teamName);
+    if (teamResponses.length === 0) return [];
+
+    // 计算每个字段的平均值
+    const allFields = [
+      ...SURVEY_CATEGORIES.developmentProcess.fields.map(f => ({ ...f, category: 'dev' })),
+      ...SURVEY_CATEGORIES.dailyTasks.fields.map(f => ({ ...f, category: 'daily' }))
+    ];
+
+    const fieldData = allFields.map(field => {
+      const sum = teamResponses.reduce((s, r) => s + (r.timeAllocation[field.key] || 0), 0);
+      const avg = sum / teamResponses.length;
+      return {
+        label: field.label,
+        value: Number(avg.toFixed(2)),
+        category: field.category
+      };
+    });
+
+    // 按百分比从大到小排列
+    return fieldData.sort((a, b) => b.value - a.value);
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-8">
@@ -380,6 +412,7 @@ export default function ResultsPage() {
                   <TableHead className="text-right">提交人数</TableHead>
                   <TableHead className="text-right">平均研发流程</TableHead>
                   <TableHead className="text-right">平均日常事项</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -391,6 +424,16 @@ export default function ResultsPage() {
                     <TableCell className="text-right">{stat.count}</TableCell>
                     <TableCell className="text-right">{stat.avgDev.toFixed(1)}%</TableCell>
                     <TableCell className="text-right">{stat.avgDaily.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTeam(stat.team)}
+                      >
+                        <Info className="w-4 h-4 mr-1" />
+                        详情
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -398,6 +441,69 @@ export default function ResultsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* 小组详情弹窗 */}
+      <Dialog open={selectedTeam !== null} onOpenChange={(open: boolean) => !open && setSelectedTeam(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedTeam} - 时间比例分布</DialogTitle>
+          </DialogHeader>
+          {selectedTeam && (
+            <div className="mt-4">
+              <ReactECharts
+                option={{
+                  tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                      type: 'shadow'
+                    },
+                    formatter: '{b}: {c}%'
+                  },
+                  grid: {
+                    left: '15%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '3%',
+                    containLabel: true
+                  },
+                  xAxis: {
+                    type: 'value',
+                    name: '时间占比 (%)',
+                    axisLabel: {
+                      formatter: '{value}%'
+                    }
+                  },
+                  yAxis: {
+                    type: 'category',
+                    data: getTeamDetailData(selectedTeam).map(d => d.label),
+                    axisLabel: {
+                      interval: 0
+                    }
+                  },
+                  series: [
+                    {
+                      type: 'bar',
+                      data: getTeamDetailData(selectedTeam).map(d => ({
+                        value: d.value,
+                        itemStyle: {
+                          color: d.category === 'dev' ? '#1e40af' : '#7dd3fc'
+                        }
+                      })),
+                      barWidth: '60%',
+                      label: {
+                        show: true,
+                        position: 'right',
+                        formatter: '{c}%'
+                      }
+                    }
+                  ]
+                }}
+                style={{ height: '600px' }}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 搜索框和问卷明细列表 */}
       <Card>
