@@ -25,7 +25,9 @@ export const SURVEY_CATEGORIES = {
       { key: 'daily_qa', label: '日常答疑' },
       { key: 'public_opinion', label: '舆情排查' },
       { key: 'meetings', label: '开会' },
-      { key: 'online_emergency', label: '线上问题应急' }
+      { key: 'online_emergency', label: '线上问题应急' },
+      { key: 'research_and_sharing', label: '调研和分享' },
+      { key: 'other', label: '其他' }
     ]
   }
 } as const;
