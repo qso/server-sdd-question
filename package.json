@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup-db": "tsx scripts/setup-db.ts"
+    "setup-db": "tsx scripts/setup-db.ts",
+    "check-schema": "tsx scripts/check-schema.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
