@@ -98,11 +98,109 @@ export default function SurveyForm() {
     const result = await submitSurvey(formData);
 
     setIsSubmitting(false);
-    setSubmitStatus({
-      type: result.success ? 'success' : 'error',
-      message: result.message
-    });
+
+    if (result.success) {
+      // 提交成功，设置成功状态
+      setSubmitStatus({
+        type: 'success',
+        message: result.message
+      });
+    } else {
+      // 提交失败，只显示错误信息
+      setSubmitStatus({
+        type: 'error',
+        message: result.message
+      });
+    }
   };
+
+  // 如果提交成功，显示感谢页面
+  if (submitStatus.type === 'success') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] space-y-6">
+        <Card className="border-2 border-emerald-200 bg-emerald-50/50 backdrop-blur-sm max-w-2xl w-full">
+          <CardContent className="pt-8 pb-8 text-center space-y-6">
+            {/* 成功图标 */}
+            <div className="flex justify-center">
+              <div className="rounded-full bg-emerald-100 p-4">
+                <svg
+                  className="w-16 h-16 text-emerald-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* 感谢文字 */}
+            <div className="space-y-3">
+              <h2 className="text-3xl font-bold text-gray-900">
+                感谢您的填写！
+              </h2>
+              <p className="text-lg text-gray-700">
+                您的问卷已成功提交
+              </p>
+              <p className="text-sm text-gray-600">
+                您的反馈对我们评估 AI 研发提效非常重要
+              </p>
+            </div>
+
+            {/* 提交信息 */}
+            <div className="bg-white rounded-lg p-4 space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">提交人：</span>
+                <span className="font-medium text-gray-900">{name}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">所属小组：</span>
+                <span className="font-medium text-gray-900">{team}</span>
+              </div>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="flex gap-3 justify-center pt-4">
+              <Button
+                onClick={() => {
+                  // 重置表单
+                  setName('');
+                  setTeam('');
+                  setSubmitStatus({ type: null, message: '' });
+                  // 重置滑块值
+                  const initial: Record<string, number> = {};
+                  const allFields = [
+                    ...SURVEY_CATEGORIES.developmentProcess.fields,
+                    ...SURVEY_CATEGORIES.dailyTasks.fields
+                  ];
+                  const equalValue = 100 / allFields.length;
+                  allFields.forEach(field => {
+                    initial[field.key] = equalValue;
+                  });
+                  setValues(initial);
+                }}
+                variant="outline"
+                size="lg"
+              >
+                再填一份
+              </Button>
+              <Button
+                onClick={() => window.location.href = '/admin'}
+                size="lg"
+              >
+                查看数据后台
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -160,14 +258,8 @@ export default function SurveyForm() {
         isValid={isValid}
       />
 
-      {submitStatus.type && (
-        <div
-          className={`p-4 rounded-lg ${
-            submitStatus.type === 'success'
-              ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-              : 'bg-rose-50 text-rose-900 border border-rose-200'
-          }`}
-        >
+      {submitStatus.type === 'error' && (
+        <div className="p-4 rounded-lg bg-rose-50 text-rose-900 border border-rose-200">
           {submitStatus.message}
         </div>
       )}
