@@ -35,6 +35,7 @@ export const SURVEY_CATEGORIES = {
 export const TEAM_OPTIONS = [
   '会员业务技术组',
   '内容运营技术组',
+  '用户社区技术组',
   '平台服务端技术组',
   '长音频直播技术组',
   '心遇业务技术组',
