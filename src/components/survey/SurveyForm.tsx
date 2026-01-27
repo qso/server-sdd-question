@@ -92,8 +92,8 @@ export default function SurveyForm() {
     const formData = {
       name: name.trim(),
       team: team.trim(),
-      ...values
-    } as any;
+      time_allocation: values
+    };
 
     const result = await submitSurvey(formData);
 

@@ -1,4 +1,5 @@
 import { getAllSurveyResponses, getSurveyStats } from '@/lib/db';
+import { SURVEY_CATEGORIES } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -19,6 +20,34 @@ export default async function AdminPage() {
       getAllSurveyResponses(),
       getSurveyStats()
     ]);
+
+    // Calculate average percentages from JSON data
+    let totalDevSum = 0;
+    let totalDailySum = 0;
+    const validResponses = responses.map((response: any) => {
+      const timeAllocation = typeof response.time_allocation === 'string'
+        ? JSON.parse(response.time_allocation)
+        : response.time_allocation;
+
+      const devSum = SURVEY_CATEGORIES.developmentProcess.fields
+        .reduce((sum, field) => sum + (Number(timeAllocation[field.key]) || 0), 0);
+
+      const dailySum = SURVEY_CATEGORIES.dailyTasks.fields
+        .reduce((sum, field) => sum + (Number(timeAllocation[field.key]) || 0), 0);
+
+      totalDevSum += devSum;
+      totalDailySum += dailySum;
+
+      return {
+        ...response,
+        timeAllocation,
+        devSum,
+        dailySum
+      };
+    });
+
+    const avgDevProcess = validResponses.length > 0 ? totalDevSum / validResponses.length : 0;
+    const avgDailyTasks = validResponses.length > 0 ? totalDailySum / validResponses.length : 0;
 
     return (
       <div className="container mx-auto py-8 space-y-6">
@@ -55,7 +84,7 @@ export default async function AdminPage() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {stats.avg_dev_process ? Number(stats.avg_dev_process).toFixed(1) : '0.0'}%
+                {avgDevProcess.toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -68,7 +97,7 @@ export default async function AdminPage() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {stats.avg_daily_tasks ? Number(stats.avg_daily_tasks).toFixed(1) : '0.0'}%
+                {avgDailyTasks.toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -96,38 +125,15 @@ export default async function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {responses.map((response: any) => {
-                      const devSum = Number(response.requirement_analysis || 0) +
-                        Number(response.requirement_output || 0) +
-                        Number(response.requirement_review || 0) +
-                        Number(response.task_breakdown || 0) +
-                        Number(response.technical_proposal_output || 0) +
-                        Number(response.technical_proposal_review || 0) +
-                        Number(response.test_case_output || 0) +
-                        Number(response.test_case_review || 0) +
-                        Number(response.code_development || 0) +
-                        Number(response.feature_integration || 0) +
-                        Number(response.smoke_testing || 0) +
-                        Number(response.functional_testing || 0) +
-                        Number(response.bugfix || 0) +
-                        Number(response.code_review || 0) +
-                        Number(response.feature_launch || 0);
-
-                      const dailySum = Number(response.alert_management || 0) +
-                        Number(response.exception_logs || 0) +
-                        Number(response.daily_qa || 0) +
-                        Number(response.public_opinion || 0) +
-                        Number(response.meetings || 0) +
-                        Number(response.online_emergency || 0);
-
+                    {validResponses.map((response: any) => {
                       return (
                         <TableRow key={response.id}>
                           <TableCell className="font-medium">{response.name}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{response.team}</Badge>
                           </TableCell>
-                          <TableCell>{devSum.toFixed(1)}%</TableCell>
-                          <TableCell>{dailySum.toFixed(1)}%</TableCell>
+                          <TableCell>{response.devSum.toFixed(1)}%</TableCell>
+                          <TableCell>{response.dailySum.toFixed(1)}%</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(response.updated_at).toLocaleString('zh-CN')}
                           </TableCell>
