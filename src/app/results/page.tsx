@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Fragment } from 'react';
 import { SURVEY_CATEGORIES } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -438,8 +438,8 @@ export default function ResultsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredResponses.map((response) => (
-                    <>
-                      <TableRow key={response.id} className="cursor-pointer hover:bg-gray-50">
+                    <Fragment key={response.id}>
+                      <TableRow className="cursor-pointer hover:bg-gray-50">
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -500,7 +500,7 @@ export default function ResultsPage() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
