@@ -14,6 +14,8 @@ interface SliderGroupProps {
   values: Record<string, number>;
   groupSum: number;
   onChange: (key: string, value: number) => void;
+  lockedFields?: Record<string, boolean>;
+  onToggleLock?: (key: string) => void;
 }
 
 export default function SliderGroup({
@@ -21,7 +23,9 @@ export default function SliderGroup({
   fields,
   values,
   groupSum,
-  onChange
+  onChange,
+  lockedFields = {},
+  onToggleLock
 }: SliderGroupProps) {
   return (
     <Card className="border-2">
@@ -42,6 +46,8 @@ export default function SliderGroup({
             label={field.label}
             value={values[field.key] || 0}
             onChange={(value) => onChange(field.key, value)}
+            locked={lockedFields[field.key] || false}
+            onToggleLock={onToggleLock ? () => onToggleLock(field.key) : undefined}
           />
         ))}
       </CardContent>
