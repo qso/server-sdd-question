@@ -1,4 +1,8 @@
+import { config } from 'dotenv';
 import { sql } from '@vercel/postgres';
+
+// 加载 .env.local 文件
+config({ path: '.env.local' });
 
 /**
  * 数据库迁移脚本：从独立列迁移到JSON存储

@@ -2,8 +2,6 @@ export const SURVEY_CATEGORIES = {
   developmentProcess: {
     title: "研发流程全过程",
     fields: [
-      { key: 'requirement_analysis', label: '需求分析' },
-      { key: 'requirement_output', label: '需求产出' },
       { key: 'requirement_review', label: '需求评审' },
       { key: 'task_breakdown', label: '拆单排期' },
       { key: 'technical_proposal_output', label: '技术方案产出' },
