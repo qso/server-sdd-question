@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { SURVEY_CATEGORIES, TEAM_OPTIONS } from '@/lib/constants';
+import { useState, useMemo, useEffect } from 'react';
+import {
+  ROLE_TYPES,
+  ROLE_OPTIONS,
+  getCategoriesByRole,
+  getTeamsByRole
+} from '@/lib/constants';
 import { submitSurvey } from '@/lib/actions';
 import SliderGroup from './SliderGroup';
 import ValidationDisplay from './ValidationDisplay';
@@ -19,6 +24,7 @@ import {
 import { Toaster, toast } from 'sonner';
 
 export default function SurveyForm() {
+  const [role, setRole] = useState<string>(ROLE_TYPES.SERVER);
   const [name, setName] = useState('');
   const [team, setTeam] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,42 +33,24 @@ export default function SurveyForm() {
     message: string;
   }>({ type: null, message: '' });
 
-  // Initialize slider values with custom default distribution
+  // 根据职能获取配置
+  const categories = useMemo(() => getCategoriesByRole(role), [role]);
+  const teamOptions = useMemo(() => getTeamsByRole(role), [role]);
+
+  // Initialize slider values - all start at 0%
   const [values, setValues] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
 
-    // 预设值：技术方案产出10%、代码开发30%、功能联调10%、功能上线10%、告警治理5%、异常日志5%、日常答疑10%
-    const presetValues: Record<string, number> = {
-      'technical_proposal_output': 10,
-      'code_development': 30,
-      'feature_integration': 10,
-      'feature_launch': 10,
-      'alert_management': 5,
-      'exception_logs': 5,
-      'daily_qa': 10
-    };
-
-    // 计算预设值总和
-    const presetSum = Object.values(presetValues).reduce((sum, val) => sum + val, 0);
-
-    // 剩余需要分配的百分比
-    const remaining = 100 - presetSum;
-
     // 收集所有字段
+    const initialCategories = getCategoriesByRole(ROLE_TYPES.SERVER);
     const allFields = [
-      ...SURVEY_CATEGORIES.developmentProcess.fields,
-      ...SURVEY_CATEGORIES.dailyTasks.fields
+      ...initialCategories.developmentProcess.fields,
+      ...initialCategories.dailyTasks.fields
     ];
 
-    // 找出没有预设值的字段
-    const unassignedFields = allFields.filter(field => !presetValues[field.key]);
-
-    // 平均分配剩余百分比
-    const equalValue = remaining / unassignedFields.length;
-
-    // 设置初始值
+    // 设置所有初始值为 0
     allFields.forEach(field => {
-      initial[field.key] = presetValues[field.key] ?? equalValue;
+      initial[field.key] = 0;
     });
 
     return initial;
@@ -71,9 +59,10 @@ export default function SurveyForm() {
   // Initialize lock states (all unlocked by default)
   const [lockedFields, setLockedFields] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
+    const initialCategories = getCategoriesByRole(ROLE_TYPES.SERVER);
     const allFields = [
-      ...SURVEY_CATEGORIES.developmentProcess.fields,
-      ...SURVEY_CATEGORIES.dailyTasks.fields
+      ...initialCategories.developmentProcess.fields,
+      ...initialCategories.dailyTasks.fields
     ];
     allFields.forEach(field => {
       initial[field.key] = false;
@@ -81,18 +70,43 @@ export default function SurveyForm() {
     return initial;
   });
 
+  // 当职能变化时，重置 values 和 lockedFields
+  useEffect(() => {
+    const allFields = [
+      ...categories.developmentProcess.fields,
+      ...categories.dailyTasks.fields
+    ];
+
+    // 重置 values - 全部设为 0%
+    const newValues: Record<string, number> = {};
+    allFields.forEach(field => {
+      newValues[field.key] = 0;
+    });
+    setValues(newValues);
+
+    // 重置 lockedFields
+    const newLocks: Record<string, boolean> = {};
+    allFields.forEach(field => {
+      newLocks[field.key] = false;
+    });
+    setLockedFields(newLocks);
+
+    // 重置团队选择
+    setTeam('');
+  }, [role, categories]);
+
   // Calculate totals
   const totals = useMemo(() => {
-    const devSum = SURVEY_CATEGORIES.developmentProcess.fields
+    const devSum = categories.developmentProcess.fields
       .reduce((sum, field) => sum + (values[field.key] || 0), 0);
 
-    const dailySum = SURVEY_CATEGORIES.dailyTasks.fields
+    const dailySum = categories.dailyTasks.fields
       .reduce((sum, field) => sum + (values[field.key] || 0), 0);
 
     const total = devSum + dailySum;
 
     return { devSum, dailySum, total };
-  }, [values]);
+  }, [values, categories]);
 
   const isValid = Math.abs(totals.total - 100) < 0.01 && !!name.trim() && !!team.trim();
 
@@ -174,6 +188,7 @@ export default function SurveyForm() {
     const formData = {
       name: name.trim(),
       team: team.trim(),
+      role: role,
       time_allocation: values
     };
 
@@ -241,6 +256,12 @@ export default function SurveyForm() {
                 <span className="font-medium text-gray-900">{name}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">职能：</span>
+                <span className="font-medium text-gray-900">
+                  {ROLE_OPTIONS.find(r => r.value === role)?.label}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">所属小组：</span>
                 <span className="font-medium text-gray-900">{team}</span>
               </div>
@@ -253,29 +274,18 @@ export default function SurveyForm() {
                   // 重置表单
                   setName('');
                   setTeam('');
+                  setRole(ROLE_TYPES.SERVER);
                   setSubmitStatus({ type: null, message: '' });
 
-                  // 重置滑块值（使用新的预设值）
+                  // 重置滑块值（全部设为0%）
                   const initial: Record<string, number> = {};
-                  const presetValues: Record<string, number> = {
-                    'technical_proposal_output': 10,
-                    'code_development': 30,
-                    'feature_integration': 10,
-                    'feature_launch': 10,
-                    'alert_management': 5,
-                    'exception_logs': 5,
-                    'daily_qa': 10
-                  };
-                  const presetSum = Object.values(presetValues).reduce((sum, val) => sum + val, 0);
-                  const remaining = 100 - presetSum;
+                  const initialCategories = getCategoriesByRole(ROLE_TYPES.SERVER);
                   const allFields = [
-                    ...SURVEY_CATEGORIES.developmentProcess.fields,
-                    ...SURVEY_CATEGORIES.dailyTasks.fields
+                    ...initialCategories.developmentProcess.fields,
+                    ...initialCategories.dailyTasks.fields
                   ];
-                  const unassignedFields = allFields.filter(field => !presetValues[field.key]);
-                  const equalValue = remaining / unassignedFields.length;
                   allFields.forEach(field => {
-                    initial[field.key] = presetValues[field.key] ?? equalValue;
+                    initial[field.key] = 0;
                   });
                   setValues(initial);
 
@@ -305,7 +315,22 @@ export default function SurveyForm() {
           <CardHeader>
             <CardTitle className="text-xl">基本信息</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="role">职能 *</Label>
+              <Select value={role} onValueChange={setRole} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="请选择您的职能" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="name">姓名 *</Label>
               <Input
@@ -323,7 +348,7 @@ export default function SurveyForm() {
                   <SelectValue placeholder="请选择您的小组" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TEAM_OPTIONS.map((option) => (
+                  {Array.from(teamOptions).map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>
@@ -335,8 +360,8 @@ export default function SurveyForm() {
         </Card>
 
         <SliderGroup
-          title={SURVEY_CATEGORIES.developmentProcess.title}
-          fields={SURVEY_CATEGORIES.developmentProcess.fields}
+          title={categories.developmentProcess.title}
+          fields={categories.developmentProcess.fields}
           values={values}
           groupSum={totals.devSum}
           onChange={handleSliderChange}
@@ -345,8 +370,8 @@ export default function SurveyForm() {
         />
 
         <SliderGroup
-          title={SURVEY_CATEGORIES.dailyTasks.title}
-          fields={SURVEY_CATEGORIES.dailyTasks.fields}
+          title={categories.dailyTasks.title}
+          fields={categories.dailyTasks.fields}
           values={values}
           groupSum={totals.dailySum}
           onChange={handleSliderChange}

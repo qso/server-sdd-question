@@ -6,7 +6,11 @@ import { createSurveyResponse } from './db';
 
 export async function submitSurvey(formData: SurveyData) {
   try {
+    console.log('Received form data:', formData);
+
     const validatedData = surveySchema.parse(formData);
+    console.log('Validated data:', validatedData);
+
     const result = await createSurveyResponse(validatedData);
 
     revalidatePath('/admin');

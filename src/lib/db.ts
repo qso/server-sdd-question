@@ -3,13 +3,15 @@ import { SurveyData } from './validations';
 
 export async function createSurveyResponse(data: SurveyData) {
   const timeAllocationJson = JSON.stringify(data.time_allocation);
+  const role = data.role || 'server';
 
   const result = await sql`
-    INSERT INTO survey_responses (name, team, time_allocation)
-    VALUES (${data.name}, ${data.team}, ${timeAllocationJson})
+    INSERT INTO survey_responses (name, team, role, time_allocation)
+    VALUES (${data.name}, ${data.team}, ${role}, ${timeAllocationJson})
     ON CONFLICT (name)
     DO UPDATE SET
       team = EXCLUDED.team,
+      role = EXCLUDED.role,
       time_allocation = EXCLUDED.time_allocation,
       updated_at = CURRENT_TIMESTAMP
     RETURNING *;

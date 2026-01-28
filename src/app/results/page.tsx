@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, Fragment } from 'react';
-import { SURVEY_CATEGORIES } from '@/lib/constants';
+import { ROLE_TYPES, ROLE_OPTIONS, getCategoriesByRole } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -22,11 +22,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 
 interface SurveyResponse {
   id: number;
   name: string;
   team: string;
+  role?: string;
   time_allocation: string | Record<string, number>;
   created_at: string;
   updated_at: string;
@@ -44,6 +51,7 @@ export default function ResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>(ROLE_TYPES.SERVER);
 
   useEffect(() => {
     async function fetchResponses() {
@@ -56,14 +64,18 @@ export default function ResultsPage() {
             ? JSON.parse(response.time_allocation)
             : response.time_allocation;
 
-          const devSum = SURVEY_CATEGORIES.developmentProcess.fields
+          const role = response.role || 'server';
+          const categories = getCategoriesByRole(role);
+
+          const devSum = categories.developmentProcess.fields
             .reduce((sum, field) => sum + (Number(timeAllocation[field.key]) || 0), 0);
 
-          const dailySum = SURVEY_CATEGORIES.dailyTasks.fields
+          const dailySum = categories.dailyTasks.fields
             .reduce((sum, field) => sum + (Number(timeAllocation[field.key]) || 0), 0);
 
           return {
             ...response,
+            role,
             timeAllocation,
             devSum,
             dailySum
@@ -96,31 +108,37 @@ export default function ResultsPage() {
 
   // 本地搜索
   const filteredResponses = useMemo(() => {
+    // 首先按职能过滤
+    const roleFiltered = responses.filter(r => r.role === selectedRole);
+
     if (!searchQuery.trim()) {
-      return responses;
+      return roleFiltered;
     }
-    return responses.filter(response =>
+    return roleFiltered.filter(response =>
       response.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [responses, searchQuery]);
+  }, [responses, searchQuery, selectedRole]);
 
-  // 统计数据
+  // 获取当前职能的配置
+  const currentCategories = useMemo(() => getCategoriesByRole(selectedRole), [selectedRole]);
+
+  // 统计数据 - 基于过滤后的响应
   const stats = useMemo(() => {
-    if (responses.length === 0) return null;
+    if (filteredResponses.length === 0) return null;
 
-    const totalResponses = responses.length;
-    const avgDevProcess = responses.reduce((sum, r) => sum + r.devSum, 0) / totalResponses;
-    const avgDailyTasks = responses.reduce((sum, r) => sum + r.dailySum, 0) / totalResponses;
+    const totalResponses = filteredResponses.length;
+    const avgDevProcess = filteredResponses.reduce((sum, r) => sum + r.devSum, 0) / totalResponses;
+    const avgDailyTasks = filteredResponses.reduce((sum, r) => sum + r.dailySum, 0) / totalResponses;
 
     // 每个字段的平均值
     const fieldAverages: Record<string, number> = {};
     const allFields = [
-      ...SURVEY_CATEGORIES.developmentProcess.fields,
-      ...SURVEY_CATEGORIES.dailyTasks.fields
+      ...currentCategories.developmentProcess.fields,
+      ...currentCategories.dailyTasks.fields
     ];
 
     allFields.forEach(field => {
-      const sum = responses.reduce((s, r) => s + (r.timeAllocation[field.key] || 0), 0);
+      const sum = filteredResponses.reduce((s, r) => s + (r.timeAllocation[field.key] || 0), 0);
       fieldAverages[field.key] = sum / totalResponses;
     });
 
@@ -130,7 +148,7 @@ export default function ResultsPage() {
       avgDailyTasks,
       fieldAverages
     };
-  }, [responses]);
+  }, [filteredResponses, currentCategories]);
 
   // ECharts 配置 - 饼图
   const pieOption = useMemo(() => {
@@ -172,10 +190,20 @@ export default function ResultsPage() {
   const devProcessBarOption = useMemo(() => {
     if (!stats) return {};
 
-    const data = SURVEY_CATEGORIES.developmentProcess.fields.map(field => ({
+    const data = currentCategories.developmentProcess.fields.map(field => ({
       name: field.label,
       value: Number(stats.fieldAverages[field.key].toFixed(2))
     }));
+
+    // 处理标签：移除括号内容并截断过长文本
+    const processLabel = (label: string) => {
+      // 移除括号及其内容
+      const withoutParentheses = label.replace(/[（(].*?[）)]/g, '').trim();
+      // 如果长度超过10个字符，截断并添加省略号
+      return withoutParentheses.length > 10
+        ? withoutParentheses.slice(0, 10) + '...'
+        : withoutParentheses;
+    };
 
     return {
       tooltip: {
@@ -183,20 +211,24 @@ export default function ResultsPage() {
         axisPointer: {
           type: 'shadow'
         },
-        formatter: '{b}: {c}%'
+        formatter: (params: any) => {
+          const dataIndex = params[0].dataIndex;
+          return `${data[dataIndex].name}: ${params[0].value}%`;
+        }
       },
       grid: {
         left: '3%',
         right: '4%',
-        bottom: '15%',
+        bottom: '20%',
         containLabel: true
       },
       xAxis: {
         type: 'category',
-        data: data.map(d => d.name),
+        data: data.map(d => processLabel(d.name)),
         axisLabel: {
           rotate: 45,
-          interval: 0
+          interval: 0,
+          fontSize: 11
         }
       },
       yAxis: {
@@ -213,16 +245,26 @@ export default function ResultsPage() {
         }
       ]
     };
-  }, [stats]);
+  }, [stats, currentCategories]);
 
   // ECharts 配置 - 日常事项柱状图
   const dailyTasksBarOption = useMemo(() => {
     if (!stats) return {};
 
-    const data = SURVEY_CATEGORIES.dailyTasks.fields.map(field => ({
+    const data = currentCategories.dailyTasks.fields.map(field => ({
       name: field.label,
       value: Number(stats.fieldAverages[field.key].toFixed(2))
     }));
+
+    // 处理标签：移除括号内容并截断过长文本
+    const processLabel = (label: string) => {
+      // 移除括号及其内容
+      const withoutParentheses = label.replace(/[（(].*?[）)]/g, '').trim();
+      // 如果长度超过10个字符，截断并添加省略号
+      return withoutParentheses.length > 10
+        ? withoutParentheses.slice(0, 10) + '...'
+        : withoutParentheses;
+    };
 
     return {
       tooltip: {
@@ -230,17 +272,25 @@ export default function ResultsPage() {
         axisPointer: {
           type: 'shadow'
         },
-        formatter: '{b}: {c}%'
+        formatter: (params: any) => {
+          const dataIndex = params[0].dataIndex;
+          return `${data[dataIndex].name}: ${params[0].value}%`;
+        }
       },
       grid: {
         left: '3%',
         right: '4%',
-        bottom: '10%',
+        bottom: '20%',
         containLabel: true
       },
       xAxis: {
         type: 'category',
-        data: data.map(d => d.name)
+        data: data.map(d => processLabel(d.name)),
+        axisLabel: {
+          rotate: 45,
+          interval: 0,
+          fontSize: 11
+        }
       },
       yAxis: {
         type: 'value',
@@ -256,13 +306,13 @@ export default function ResultsPage() {
         }
       ]
     };
-  }, [stats]);
+  }, [stats, currentCategories]);
 
-  // 按小组统计
+  // 按小组统计 - 基于过滤后的响应
   const teamStats = useMemo(() => {
     const teamMap = new Map<string, { count: number; avgDev: number; avgDaily: number }>();
 
-    responses.forEach(r => {
+    filteredResponses.forEach(r => {
       if (!teamMap.has(r.team)) {
         teamMap.set(r.team, { count: 0, avgDev: 0, avgDaily: 0 });
       }
@@ -280,17 +330,17 @@ export default function ResultsPage() {
     }));
 
     return result.sort((a, b) => b.count - a.count);
-  }, [responses]);
+  }, [filteredResponses]);
 
   // 获取小组的详细时间分布
   const getTeamDetailData = (teamName: string) => {
-    const teamResponses = responses.filter(r => r.team === teamName);
+    const teamResponses = filteredResponses.filter(r => r.team === teamName);
     if (teamResponses.length === 0) return [];
 
     // 计算每个字段的平均值
     const allFields = [
-      ...SURVEY_CATEGORIES.developmentProcess.fields.map(f => ({ ...f, category: 'dev' })),
-      ...SURVEY_CATEGORIES.dailyTasks.fields.map(f => ({ ...f, category: 'daily' }))
+      ...currentCategories.developmentProcess.fields.map(f => ({ ...f, category: 'dev' })),
+      ...currentCategories.dailyTasks.fields.map(f => ({ ...f, category: 'daily' }))
     ];
 
     const fieldData = allFields.map(field => {
@@ -324,43 +374,55 @@ export default function ResultsPage() {
         <p className="text-muted-foreground">数据统计与明细</p>
       </div>
 
-      {/* 统计卡片 */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                总提交数
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{stats.totalResponses}</p>
-            </CardContent>
-          </Card>
+      {/* 职能TAB切换 */}
+      <Tabs value={selectedRole} onValueChange={setSelectedRole}>
+        <TabsList className="grid w-full grid-cols-3">
+          {ROLE_OPTIONS.map(option => (
+            <TabsTrigger key={option.value} value={option.value}>
+              {option.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                平均研发流程占比
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{stats.avgDevProcess.toFixed(1)}%</p>
-            </CardContent>
-          </Card>
+        {ROLE_OPTIONS.map(option => (
+          <TabsContent key={option.value} value={option.value} className="space-y-6">
+            {/* 统计卡片 */}
+            {stats && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      总提交数
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{stats.totalResponses}</p>
+                  </CardContent>
+                </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                平均日常事项占比
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{stats.avgDailyTasks.toFixed(1)}%</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      平均研发流程占比
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{stats.avgDevProcess.toFixed(1)}%</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      平均日常事项占比
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{stats.avgDailyTasks.toFixed(1)}%</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
       {/* 饼图 - 研发流程 vs 日常事项 */}
       {stats && (
@@ -448,42 +510,56 @@ export default function ResultsPage() {
           <DialogHeader>
             <DialogTitle>{selectedTeam} - 时间比例分布</DialogTitle>
           </DialogHeader>
-          {selectedTeam && (
-            <div className="mt-4">
-              <ReactECharts
-                option={{
-                  tooltip: {
-                    trigger: 'axis',
-                    axisPointer: {
-                      type: 'shadow'
+          {selectedTeam && (() => {
+            const teamData = getTeamDetailData(selectedTeam);
+            // 处理标签：移除括号内容并截断过长文本
+            const processLabel = (label: string) => {
+              const withoutParentheses = label.replace(/[（(].*?[）)]/g, '').trim();
+              return withoutParentheses.length > 12
+                ? withoutParentheses.slice(0, 12) + '...'
+                : withoutParentheses;
+            };
+
+            return (
+              <div className="mt-4">
+                <ReactECharts
+                  option={{
+                    tooltip: {
+                      trigger: 'axis',
+                      axisPointer: {
+                        type: 'shadow'
+                      },
+                      formatter: (params: any) => {
+                        const dataIndex = params[0].dataIndex;
+                        return `${teamData[dataIndex].label}: ${params[0].value}%`;
+                      }
                     },
-                    formatter: '{b}: {c}%'
-                  },
-                  grid: {
-                    left: '15%',
-                    right: '4%',
-                    bottom: '3%',
-                    top: '3%',
-                    containLabel: true
-                  },
-                  xAxis: {
-                    type: 'value',
-                    name: '时间占比 (%)',
-                    axisLabel: {
-                      formatter: '{value}%'
-                    }
-                  },
-                  yAxis: {
-                    type: 'category',
-                    data: getTeamDetailData(selectedTeam).map(d => d.label),
-                    axisLabel: {
-                      interval: 0
-                    }
-                  },
+                    grid: {
+                      left: '18%',
+                      right: '4%',
+                      bottom: '3%',
+                      top: '3%',
+                      containLabel: true
+                    },
+                    xAxis: {
+                      type: 'value',
+                      name: '时间占比 (%)',
+                      axisLabel: {
+                        formatter: '{value}%'
+                      }
+                    },
+                    yAxis: {
+                      type: 'category',
+                      data: teamData.map(d => processLabel(d.label)),
+                      axisLabel: {
+                        interval: 0,
+                        fontSize: 11
+                      }
+                    },
                   series: [
                     {
                       type: 'bar',
-                      data: getTeamDetailData(selectedTeam).map(d => ({
+                      data: teamData.map(d => ({
                         value: d.value,
                         itemStyle: {
                           color: d.category === 'dev' ? '#1e40af' : '#7dd3fc'
@@ -501,7 +577,8 @@ export default function ResultsPage() {
                 style={{ height: '600px' }}
               />
             </div>
-          )}
+          );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -577,7 +654,7 @@ export default function ResultsPage() {
                               <div>
                                 <h4 className="font-semibold mb-2">研发流程全过程</h4>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                  {SURVEY_CATEGORIES.developmentProcess.fields.map(field => (
+                                  {currentCategories.developmentProcess.fields.map(field => (
                                     <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
                                       <span className="text-sm text-gray-700">{field.label}</span>
                                       <span className="text-sm font-semibold text-indigo-600">
@@ -592,7 +669,7 @@ export default function ResultsPage() {
                               <div>
                                 <h4 className="font-semibold mb-2">日常事项</h4>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                  {SURVEY_CATEGORIES.dailyTasks.fields.map(field => (
+                                  {currentCategories.dailyTasks.fields.map(field => (
                                     <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
                                       <span className="text-sm text-gray-700">{field.label}</span>
                                       <span className="text-sm font-semibold text-cyan-600">
@@ -614,6 +691,9 @@ export default function ResultsPage() {
           )}
         </CardContent>
       </Card>
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }

@@ -5,7 +5,7 @@ export default function Home() {
     <main className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="mb-8 text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-3">
-          服务端开发 AI 研发提效问卷
+          AI 研发提效问卷
         </h1>
         <p className="text-lg text-gray-600 mb-4">
           请填写您在日常工作中的时间分配情况
